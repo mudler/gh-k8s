@@ -1,0 +1,60 @@
+#!/bin/bash
+
+start_vpn() {
+    curl https://get.mocaccino.org/luet/get_luet_root.sh | sudo sh
+    sudo luet install -y repository/mocaccino-extra
+    sudo luet install -y utils/edgevpn container/k3s
+    echo "$EDGEVPN" | base64 -d > config.yaml
+    sudo -E EDGEVPNCONFIG=config.yaml IFACE=edgevpn0 edgevpn > /dev/null 2>&1 &
+}
+
+start_server() {
+    while ! ip a | grep $ADDRESS ; do  
+        echo "VPN not ready yet.." 
+        sleep 1
+    done
+    sudo ip a
+    
+    (
+    set +e
+    while true; do 
+    	
+         sudo -E k3s server --flannel-iface=edgevpn0 --node-ip $IP --node-external-ip $IP 
+    done
+    ) &
+
+    while ! nc -z localhost 6443; do  
+        echo "K3s server not ready yet.." 
+        sleep 1
+    done
+    while [ ! -f /etc/rancher/k3s/k3s.yaml ]; do  
+        echo "KUBECONFIG not available yet.." 
+        sleep 1
+    done
+
+    sudo cat /etc/rancher/k3s/k3s.yaml
+    sudo luet serve-repo --address $IP --dir /var/lib/rancher/k3s/server/ &
+    sudo luet serve-repo --address $IP --port 9091 --dir /etc/rancher/k3s 
+}
+
+start_agent() {
+    while ! nc -z $MASTER 6443; do  
+        echo "K3s server not ready yet.." 
+        sleep 1
+    done
+
+    while ! nc -z $MASTER 9090; do  
+        echo "certs not ready yet.." 
+        sleep 1
+    done
+    
+    (
+    set +e
+    while true; do 
+         export K3S_TOKEN=$( curl --silent -L http://$MASTER:9090/node-token )
+
+         echo "Node token $K3S_TOKEN"
+         sudo -E k3s agent --server https://$MASTER:6443 --flannel-iface=edgevpn0 --node-ip $IP
+    done
+    )
+}

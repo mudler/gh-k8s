@@ -1,0 +1,69 @@
+name: Test
+
+on:
+  push:
+concurrency: 
+  group: staging_environment
+  cancel-in-progress: true
+jobs:
+  master:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - ip: "10.1.0.20/24"
+            ip_addr: "10.1.0.20"
+    steps:
+      - name: Release space from worker
+        run: |
+          sudo rm -rf /usr/local/lib/android # will release about 10 GB if you don't need Android
+          sudo rm -rf /usr/share/dotnet # will release about 20GB if you don't need .NET
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - name: server up
+        env:
+          EDGEVPN: ${{ secrets.EDGEVPN }}
+          ADDRESS: ${{ matrix.ip }}
+          IP: ${{ matrix.ip_addr }}
+        run: |
+              source helpers.sh
+              start_vpn
+              start_server
+  workers:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          # Add more lines here to have more worker nodes. 
+          # Just take care of bumping the IP address.
+          # The IP address is the VPN address of each node.
+          - ip: "10.1.0.21/24"
+            ip_addr: "10.1.0.21"
+          - ip: "10.1.0.22/24"
+            ip_addr: "10.1.0.22"
+          - ip: "10.1.0.23/24"
+            ip_addr: "10.1.0.23"
+          - ip: "10.1.0.24/24"
+            ip_addr: "10.1.0.24"
+    steps:
+      - name: Release space from worker
+        run: |
+          sudo rm -rf /usr/local/lib/android # will release about 10 GB if you don't need Android
+          sudo rm -rf /usr/share/dotnet # will release about 20GB if you don't need .NET
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - name: server up
+        env:
+          EDGEVPN: ${{ secrets.EDGEVPN }}
+          ADDRESS: ${{ matrix.ip }}
+          IP: ${{ matrix.ip_addr }}
+          MASTER: 10.1.0.20
+        run: |
+              source helpers.sh
+              start_vpn
+
+              start_agent
