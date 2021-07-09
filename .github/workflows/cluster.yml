@@ -2,9 +2,10 @@ name: Test
 
 on:
   push:
+
+# This block ensures only one instance is running
 concurrency: 
-  group: staging_environment
-  cancel-in-progress: true
+  group: ci-${{ github.head_ref || github.ref }}-${{ github.repository }}
 jobs:
   master:
     runs-on: ubuntu-latest

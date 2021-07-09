@@ -8,6 +8,13 @@ start_vpn() {
     sudo -E EDGEVPNCONFIG=config.yaml IFACE=edgevpn0 edgevpn > /dev/null 2>&1 &
 }
 
+wait_master() {
+    while ! nc -z $MASTER 6443; do  
+        echo "K3s server not ready yet.." 
+        sleep 1
+    done
+}
+
 start_server() {
     while ! ip a | grep $ADDRESS ; do  
         echo "VPN not ready yet.." 
@@ -38,10 +45,7 @@ start_server() {
 }
 
 start_agent() {
-    while ! nc -z $MASTER 6443; do  
-        echo "K3s server not ready yet.." 
-        sleep 1
-    done
+    wait_master
 
     while ! nc -z $MASTER 9090; do  
         echo "certs not ready yet.." 
@@ -57,4 +61,13 @@ start_agent() {
          sudo -E k3s agent --server https://$MASTER:6443 --flannel-iface=edgevpn0 --node-ip $IP
     done
     )
+}
+
+start_jumpbox() {
+    sudo luet install -y utils/k9s container/kubectl
+}
+
+prepare_jumpbox() {
+    wait_master
+    curl http://10.1.0.20:9091/k3s.yaml | sed 's/127\.0\.0\.1/10.1.0.20/g' > k3s.yaml
 }
