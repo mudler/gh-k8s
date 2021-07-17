@@ -71,3 +71,33 @@ prepare_jumpbox() {
     wait_master
     curl http://10.1.0.20:9091/k3s.yaml | sed 's/127\.0\.0\.1/10.1.0.20/g' > k3s.yaml
 }
+
+install_helm() {
+    curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
+}
+
+install_fleet() {
+    export KUBECONFIG=k3s.yaml
+    helm -n fleet-system install --create-namespace --wait \
+        fleet-crd https://github.com/rancher/fleet/releases/download/v0.3.3/fleet-crd-0.3.3.tgz
+    helm -n fleet-system install --create-namespace --wait \
+        fleet https://github.com/rancher/fleet/releases/download/v0.3.3/fleet-0.3.3.tgz
+    
+    while : ; do
+        kubectl get pods -n fleet-local && break
+        sleep 5
+    done
+
+    cat <<EOF | kubectl apply -f -
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: fleet
+  namespace: fleet-local
+spec:
+  repo: "https://github.com/$GITHUB_REPOSITORY"
+  branch: ${GITHUB_REF#refs/heads/}
+  paths:
+  - manifests
+EOF
+}
